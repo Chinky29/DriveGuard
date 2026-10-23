@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DriveGuard - Real-Time Driver-State Monitoring</title>
+  <meta name="description" content="Edge-first real-time driver alertness and advisory state monitoring prototype with MediaPipe FaceMesh, EAR, PERCLOS, and head pose estimation.">
+  
+  <!-- Modern Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+
+  <!-- App Header -->
+  <header class="app-header">
+    <div class="brand-wrapper">
+      <div class="brand-logo">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+          <circle cx="12" cy="11" r="3"/>
+        </svg>
+      </div>
+      <div>
+        <h1 class="brand-title">DriveGuard</h1>
+        <div class="brand-subtitle">Driver Alertness Advisory Cockpit</div>
+      </div>
+    </div>
+
+    <div class="header-actions">
+      <!-- Privacy Indicator Badge (Rule 3) -->
+      <div class="privacy-pill" title="Privacy Guaranteed: Video processing executes locally in memory. Raw video frames are never recorded or saved to disk.">
+        <div class="pulse-dot"></div>
+        <span>CAMERA ACTIVE [LOCAL PROCESSING ONLY]</span>
+      </div>
+
+      <div class="stat-chip" id="fpsStat">30.0 FPS</div>
+      <button id="audioToggle" class="btn-source" style="padding: 6px 12px;">🔔 Audio: ON</button>
+    </div>
+  </header>
+
+  <!-- Cockpit Grid Container -->
+  <main class="cockpit-container">
+
+    <!-- Video Stage Card -->
+    <section class="stage-card">
+      <div class="stage-toolbar">
+        <div class="source-switcher">
+          <button class="btn-source" data-source="webcam">
+            <span>📷</span> My Webcam
+          </button>
+          <button class="btn-source active" data-source="demo">
+            <span>🎬</span> Demo Stream
+          </button>
+          <button class="btn-source" data-source="sim">
+            <span>🧪</span> Simulation
+          </button>
+        </div>
+        <div style="font-size: 0.75rem; color: var(--color-text-dim);">
+          Mode: <strong id="activeModeLabel" style="color: var(--color-text-main);">Live Stream</strong>
+        </div>
+      </div>
+
+      <div class="video-viewport">
+        <!-- Floating Dynamic Advisory Banner (Rule 1 & Rule 2) -->
+        <div id="advisoryBanner" class="advisory-floating-banner NORMAL">
+          <span id="bannerBadge" class="banner-badge NORMAL">NORMAL</span>
+          <span id="bannerText" class="banner-text">Attentive - Nominal</span>
+        </div>
+
+        <!-- Video Display Layers -->
+        <video id="webcamVideo" playsinline autoplay muted style="display: none;"></video>
+        <img id="annotatedStream" src="/video_feed" alt="DriveGuard Annotated Driver Stream">
+        <canvas id="hudCanvas"></canvas>
+      </div>
+    </section>
+
+    <!-- Sidebar Telemetry & Fusion Gauges -->
+    <aside class="sidebar-dashboard">
+
+      <!-- Eye Closure Card (EAR) -->
+      <div class="telemetry-card">
+        <div class="card-header">
+          <span class="card-title">Eye Aspect Ratio (EAR)</span>
+          <span style="font-size: 0.72rem; color: var(--color-text-dim);">Threshold: 0.21</span>
+        </div>
+        <div class="card-value-hero">
+          <span id="earValue">0.320</span>
+          <span class="unit">ratio</span>
+        </div>
+        <div class="progress-rail">
+          <div id="earProgress" class="progress-fill" style="width: 70%;"></div>
+        </div>
+        <!-- Sparkline History Canvas -->
+        <canvas id="sparklineCanvas" class="sparkline-canvas" width="340" height="48"></canvas>
+      </div>
+
+      <!-- Sustained Closure Duration & PERCLOS -->
+      <div class="telemetry-card">
+        <div class="card-header">
+          <span class="card-title">Continuous Closure & PERCLOS</span>
+          <span style="font-size: 0.72rem; color: var(--color-text-dim);">60s Window</span>
+        </div>
+        <div style="display: flex; justify-content: space-between; align-items: baseline;">
+          <div>
+            <div style="font-size: 0.7rem; color: var(--color-text-muted);">Eye Closed</div>
+            <div class="card-value-hero" style="font-size: 1.4rem;">
+              <span id="closureValue">0.00s</span>
+            </div>
+          </div>
+          <div>
+            <div style="font-size: 0.7rem; color: var(--color-text-muted);">PERCLOS</div>
+            <div class="card-value-hero" style="font-size: 1.4rem;">
+              <span id="perclosValue">3.2%</span>
+            </div>
+          </div>
+        </div>
+        <div class="progress-rail" style="margin-top: 14px;">
+          <div id="perclosProgress" class="progress-fill" style="width: 15%; background: var(--accent-blue);"></div>
+        </div>
+      </div>
+
+      <!-- Head Pose Gyroscope -->
+      <div class="telemetry-card">
+        <div class="card-header">
+          <span class="card-title">Head Pose (Euler Angles)</span>
+          <span style="font-size: 0.72rem; color: var(--color-text-dim);">solvePnP 3D</span>
+        </div>
+        <div class="pose-grid">
+          <div class="pose-axis-pill">
+            <div class="pose-axis-name">Yaw (Turn)</div>
+            <div class="pose-axis-deg" id="yawValue">0.0°</div>
+          </div>
+          <div class="pose-axis-pill">
+            <div class="pose-axis-name">Pitch (Nod)</div>
+            <div class="pose-axis-deg" id="pitchValue">0.0°</div>
+          </div>
+          <div class="pose-axis-pill">
+            <div class="pose-axis-name">Roll (Tilt)</div>
+            <div class="pose-axis-deg" id="rollValue">0.0°</div>
+          </div>
+        </div>
+        <div style="margin-top: 10px; font-size: 0.75rem; color: var(--color-text-muted);">
+          Sustained Deviation: <strong id="headDeviationValue" style="color: #fff;">0.00s (forward)</strong>
+        </div>
+      </div>
+
+    </aside>
+
+    <!-- Bottom Section: Tuning & Audit Logs -->
+    <section class="audit-container">
+      <div class="tab-nav">
+        <button class="tab-btn active" data-tab="tuning">Live Threshold Tuning</button>
+        <button class="tab-btn" data-tab="events">Event Audit Trail</button>
+        <div style="margin-left: auto;">
+          <a href="/api/export-events" download class="btn-source" style="text-decoration: none; display: inline-flex;">
+            📥 Export CSV Log
+          </a>
+        </div>
+      </div>
+
+      <!-- Tuning Sliders Tab -->
+      <div id="tuningTab" class="tuning-grid">
+        <div class="control-group">
+          <div class="control-label">
+            <span>EAR Alert Threshold</span>
+            <strong id="lblSliderEar">0.21</strong>
+          </div>
+          <input type="range" id="sliderEar" class="slider-input" min="0.12" max="0.30" step="0.01" value="0.21">
+          <span style="font-size: 0.7rem; color: var(--color-text-dim);">EAR values below this are counted as eye closure</span>
+        </div>
+
+        <div class="control-group">
+          <div class="control-label">
+            <span>Eye Closure Warning Threshold</span>
+            <strong id="lblSliderClosure">1.8s</strong>
+          </div>
+          <input type="range" id="sliderClosure" class="slider-input" min="0.5" max="3.5" step="0.1" value="1.8">
+          <span style="font-size: 0.7rem; color: var(--color-text-dim);">Duration of continuous closure before warning triggers</span>
+        </div>
+
+        <div class="control-group">
+          <div class="control-label">
+            <span>Head Yaw Deviation Limit</span>
+            <strong id="lblSliderYaw">25°</strong>
+          </div>
+          <input type="range" id="sliderYaw" class="slider-input" min="15" max="45" step="1" value="25">
+          <span style="font-size: 0.7rem; color: var(--color-text-dim);">Angle offset considered looking away from forward gaze</span>
+        </div>
+      </div>
+
+      <!-- Events Table Tab -->
+      <div id="eventsTab" class="event-table-wrapper" style="display: none;">
+        <table class="event-table">
+          <thead>
+            <tr>
+              <th>Time</th>
+              <th>Level</th>
+              <th>Advisory Reason</th>
+              <th>Avg EAR</th>
+              <th>Head Orientation</th>
+            </tr>
+          </thead>
+          <tbody id="eventsTableBody">
+            <tr>
+              <td colspan="5" style="text-align: center; color: var(--color-text-dim); padding: 16px;">
+                Monitoring active. State transitions will record here...
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+  </main>
+
+  <script src="/static/js/app.js"></script>
+</body>
+</html>

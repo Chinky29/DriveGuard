@@ -1,0 +1,88 @@
+# DriveGuard Configuration
+# Master parameters, thresholds, and windows. Strictly zero magic numbers.
+
+server:
+  host: "127.0.0.1"
+  port: 8000
+  reload: false
+
+camera:
+  device_id: 0
+  width: 640
+  height: 480
+  fps: 30
+  playback_file: null # path to video file, or leave null to use webcam
+  fallback_to_demo: true # automatically falls back to demo feed if physical camera is absent
+  demo_file: "demo_driver.mp4"
+
+landmarks:
+  model_path: "models/face_landmarker.task"
+  min_face_detection_confidence: 0.5
+  min_face_presence_confidence: 0.5
+  min_tracking_confidence: 0.5
+  max_num_faces: 1
+  reliable_detection_min_landmarks: 468
+  auto_download_model: true
+  model_url: "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task"
+
+eye:
+  ear_threshold: 0.21
+  perclos_window_sec: 60.0
+  perclos_min_history_sec: 5.0
+  perclos_advisory_threshold: 0.15 # 15% eye closure over window
+  closure_duration_notice_sec: 1.0 # 1.0s eye closure triggers notice
+  closure_duration_warning_sec: 1.8 # 1.8s eye closure triggers warning
+  left_eye_indices: [362, 385, 387, 263, 373, 380]
+  right_eye_indices: [33, 160, 158, 133, 153, 144]
+
+headpose:
+  yaw_threshold_deg: 25.0
+  pitch_up_threshold_deg: 20.0
+  pitch_down_threshold_deg: 25.0
+  roll_threshold_deg: 30.0
+  sustained_deviation_notice_sec: 1.5
+  sustained_deviation_warning_sec: 2.5
+  pose_keypoint_indices:
+    nose_tip: 1
+    chin: 199
+    left_eye_corner: 263
+    right_eye_corner: 33
+    left_mouth_corner: 291
+    right_mouth_corner: 61
+  model_points_3d:
+    nose_tip: [0.0, 0.0, 0.0]
+    chin: [0.0, -330.0, -65.0]
+    left_eye_corner: [225.0, 170.0, -135.0]
+    right_eye_corner: [-225.0, 170.0, -135.0]
+    left_mouth_corner: [150.0, -150.0, -125.0]
+    right_mouth_corner: [-150.0, -150.0, -125.0]
+
+fusion:
+  cooldown_sec: 2.0
+  advisory_reasons:
+    eye_closure: "prolonged eye closure"
+    head_deviation: "sustained head deviation"
+    combined: "sustained head deviation and eye closure"
+    perclos: "high eye closure proportion"
+    face_not_detected: "Face not reliably detected"
+
+privacy:
+  save_raw_frames: false
+  display_camera_indicator: true
+  indicator_text: "CAMERA ACTIVE [LOCAL PROCESSING ONLY]"
+
+ui:
+  window_title: "DriveGuard - Driver State Monitoring (Advisory Prototype)"
+  display_width: 960
+  display_height: 540
+  show_fps: true
+  show_landmarks: true
+  show_head_axis: true
+  show_metrics: true
+  axis_length: 50.0
+
+logging:
+  level: "INFO"
+  log_to_file: true
+  log_file: "driveguard.log"
+  log_events_csv: "driver_events.csv"
