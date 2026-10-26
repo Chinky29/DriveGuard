@@ -40,6 +40,8 @@ export interface CameraViewProps {
   readonly onLandmarksDetected?: (landmarks: NormalizedLandmark[]) => void;
   readonly onMetricsUpdate?: (metrics: LiveMetrics) => void;
   readonly onBrightnessDetected?: (lux: "optimal" | "low") => void;
+  readonly onCropCaptured?: (cropBase64: string, type: "eye" | "emotion") => void;
+  readonly enhancedModeEnabled?: boolean;
   readonly initialDebugOverlay?: boolean;
   readonly showRawTelemetryDebug?: boolean;
   readonly isPaused?: boolean;
@@ -70,6 +72,8 @@ export function CameraView({
   onLandmarksDetected,
   onMetricsUpdate,
   onBrightnessDetected,
+  onCropCaptured,
+  enhancedModeEnabled = false,
   initialDebugOverlay = false,
   showRawTelemetryDebug = false,
   isPaused = false,
@@ -84,10 +88,13 @@ export function CameraView({
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const offscreenCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const managerRef = useRef<FaceLandmarkManager | null>(null);
   const trackerRef = useRef<DriverMetricsTracker>(new DriverMetricsTracker(DEFAULT_CONFIG));
   const isStoppingRef = useRef<boolean>(false);
+  const lastCropTimeRef = useRef<number>(0);
+  const cropCycleRef = useRef<number>(0);
 
   // Fully stop and release camera media tracks and detection loop
   const stopCamera = useCallback(() => {
@@ -229,8 +236,110 @@ export function CameraView({
       if (onMetricsUpdate) {
         onMetricsUpdate(metrics);
       }
+
+      // Enhanced Mode: Capture small cropped thumbnail every 2.0s (Rule 3: volatile memory only)
+      if (
+        enhancedModeEnabled &&
+        onCropCaptured &&
+        landmarks &&
+        video &&
+        isFaceReliable &&
+        video.videoWidth > 0
+      ) {
+        const nowSec = performance.now() / 1000.0;
+        if (nowSec - lastCropTimeRef.current >= 2.0) {
+          lastCropTimeRef.current = nowSec;
+          try {
+            if (!offscreenCanvasRef.current) {
+              offscreenCanvasRef.current = document.createElement("canvas");
+            }
+            const offCanvas = offscreenCanvasRef.current;
+            const isEyeCycle = cropCycleRef.current % 2 === 0;
+            cropCycleRef.current += 1;
+
+            if (isEyeCycle) {
+              // Left eye landmark indices: [33, 160, 158, 133, 153, 144]
+              const eyeIndices = [33, 160, 158, 133, 153, 144];
+              let minX = 1,
+                minY = 1,
+                maxX = 0,
+                maxY = 0;
+              for (const idx of eyeIndices) {
+                const pt = landmarks[idx];
+                if (pt) {
+                  if (pt.x < minX) minX = pt.x;
+                  if (pt.y < minY) minY = pt.y;
+                  if (pt.x > maxX) maxX = pt.x;
+                  if (pt.y > maxY) maxY = pt.y;
+                }
+              }
+              const padX = (maxX - minX) * 0.4;
+              const padY = (maxY - minY) * 0.4;
+              const cx = Math.max(0, minX - padX);
+              const cy = Math.max(0, minY - padY);
+              const cw = Math.min(1 - cx, maxX - minX + padX * 2);
+              const ch = Math.min(1 - cy, maxY - minY + padY * 2);
+
+              const sx = cx * video.videoWidth;
+              const sy = cy * video.videoHeight;
+              const sw = cw * video.videoWidth;
+              const sh = ch * video.videoHeight;
+
+              if (sw > 0 && sh > 0) {
+                offCanvas.width = 64;
+                offCanvas.height = 64;
+                const ctx2d = offCanvas.getContext("2d");
+                if (ctx2d) {
+                  ctx2d.drawImage(video, sx, sy, sw, sh, 0, 0, 64, 64);
+                  const cropDataUrl = offCanvas.toDataURL("image/jpeg", 0.7);
+                  onCropCaptured(cropDataUrl, "eye");
+                }
+              }
+            } else {
+              // Face crop: bounding box of facial landmarks
+              let minX = 1,
+                minY = 1,
+                maxX = 0,
+                maxY = 0;
+              for (let i = 0; i < landmarks.length; i++) {
+                const pt = landmarks[i];
+                if (pt) {
+                  if (pt.x < minX) minX = pt.x;
+                  if (pt.y < minY) minY = pt.y;
+                  if (pt.x > maxX) maxX = pt.x;
+                  if (pt.y > maxY) maxY = pt.y;
+                }
+              }
+              const padX = (maxX - minX) * 0.1;
+              const padY = (maxY - minY) * 0.1;
+              const cx = Math.max(0, minX - padX);
+              const cy = Math.max(0, minY - padY);
+              const cw = Math.min(1 - cx, maxX - minX + padX * 2);
+              const ch = Math.min(1 - cy, maxY - minY + padY * 2);
+
+              const sx = cx * video.videoWidth;
+              const sy = cy * video.videoHeight;
+              const sw = cw * video.videoWidth;
+              const sh = ch * video.videoHeight;
+
+              if (sw > 0 && sh > 0) {
+                offCanvas.width = 128;
+                offCanvas.height = 128;
+                const ctx2d = offCanvas.getContext("2d");
+                if (ctx2d) {
+                  ctx2d.drawImage(video, sx, sy, sw, sh, 0, 0, 128, 128);
+                  const cropDataUrl = offCanvas.toDataURL("image/jpeg", 0.7);
+                  onCropCaptured(cropDataUrl, "emotion");
+                }
+              }
+            }
+          } catch {
+            // Offscreen canvas or crop errors handled silently
+          }
+        }
+      }
     },
-    [onLandmarksDetected, onMetricsUpdate, showDebugOverlay]
+    [onLandmarksDetected, onMetricsUpdate, onCropCaptured, enhancedModeEnabled, showDebugOverlay]
   );
 
   // Initialize MediaPipe FaceLandmarker

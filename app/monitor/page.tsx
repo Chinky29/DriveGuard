@@ -17,6 +17,7 @@ import { FusedFatigueTracker, FatigueLevel, FatigueAssessment } from "@/lib/dete
 import { AlertManager } from "@/lib/detection/alerts";
 import { CalibratedThresholds } from "@/lib/detection/calibration";
 import { DEFAULT_CONFIG } from "@/lib/detection/config";
+import { EnhancedMLClient, mergeEnhancedSignal } from "@/lib/detection/enhancedService";
 import { useSearchParams } from "next/navigation";
 import { createClerkSupabaseClient } from "@/lib/supabase/client";
 import { saveUserCalibration, loadUserCalibration } from "@/lib/supabase/calibration";
@@ -80,15 +81,48 @@ export default function MonitorPage() {
   const [isDebugVisible, setIsDebugVisible] = useState<boolean>(false);
   const [isAudioUnlocked, setIsAudioUnlocked] = useState<boolean>(false);
   const [isCriticalDismissed, setIsCriticalDismissed] = useState<boolean>(false);
+  const [enhancedMode, setEnhancedMode] = useState<boolean>(false);
 
   // Engine references
   const trackerRef = useRef<FusedFatigueTracker>(new FusedFatigueTracker(DEFAULT_CONFIG));
   const alertManagerRef = useRef<AlertManager>(new AlertManager(DEFAULT_CONFIG));
   const uploaderRef = useRef<ClientTelemetryUploader>(new ClientTelemetryUploader());
+  const enhancedClientRef = useRef<EnhancedMLClient>(new EnhancedMLClient());
   const cloudSessionIdRef = useRef<string | null>(null);
   const lastSampleTimeRef = useRef<number>(0);
   const lastTelemetryBatchTimeRef = useRef<number>(0);
   const previousLevelRef = useRef<FatigueLevel>("Normal");
+
+  // Load user preferences (Enhanced Mode & URL) from local storage
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem("driveguard_user_settings");
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (parsed.enhancedMode) {
+          setEnhancedMode(true);
+          enhancedClientRef.current.setEnabled(true);
+        }
+        if (parsed.enhancedServiceUrl) {
+          enhancedClientRef.current.setServiceUrl(parsed.enhancedServiceUrl);
+        }
+      }
+    } catch (e) {
+      console.warn("[DriveGuard] Failed to load enhanced mode settings:", e);
+    }
+  }, []);
+
+  // Dispatches small crop to optional Python microservice every 2s
+  const handleCropCaptured = useCallback(
+    (cropBase64: string, type: "eye" | "emotion") => {
+      if (!enhancedMode) return;
+      const now = performance.now() / 1000;
+      enhancedClientRef.current.evaluateCrop(cropBase64, now, type).catch(() => {
+        // Non-blocking fallback
+      });
+    },
+    [enhancedMode]
+  );
 
   // Check URL recalibrate parameter from Settings page
   useEffect(() => {
@@ -150,18 +184,29 @@ export default function MonitorPage() {
       const now = performance.now() / 1000;
 
       // Update multi-modal fused fatigue engine
-      const assessment = trackerRef.current.update({
+      let assessment = trackerRef.current.update({
         timestamp: now,
         isFaceReliable: metrics.isFaceReliable,
         perclos: metrics.perclos,
         blinkDurationSeconds: metrics.isEyeClosed ? 0.6 : 0.2,
-        yawnRatePerMinute: metrics.blinkRate > 0 ? (metrics.yawnCount / (metrics.blinkRate / 20 || 1)) : metrics.yawnCount,
+        yawnRatePerMinute:
+          metrics.blinkRate > 0
+            ? metrics.yawnCount / (metrics.blinkRate / 20 || 1)
+            : metrics.yawnCount,
         isYawning: metrics.isYawning,
         nodCount: metrics.nodCount,
         isNodding: metrics.isNodding,
         microsleepCount: metrics.microsleepCount,
         isMicrosleep: metrics.isMicrosleep,
       });
+
+      // Merge secondary weak signal if Enhanced Mode is active (max 8% score impact)
+      if (enhancedMode) {
+        assessment = mergeEnhancedSignal(
+          assessment,
+          enhancedClientRef.current.getLastResult()
+        );
+      }
 
       setFatigueAssessment(assessment);
 
@@ -232,7 +277,7 @@ export default function MonitorPage() {
         });
       }
     },
-    [sessionActive, isPaused, elapsedSeconds]
+    [sessionActive, isPaused, elapsedSeconds, enhancedMode]
   );
 
   // Actions
@@ -508,6 +553,8 @@ export default function MonitorPage() {
                     initialDebugOverlay={false}
                     showRawTelemetryDebug={isDebugVisible}
                     isPaused={isPaused}
+                    enhancedModeEnabled={enhancedMode}
+                    onCropCaptured={handleCropCaptured}
                     onMetricsUpdate={handleMetricsUpdate}
                     onBrightnessDetected={(lux) => setLightStatus(lux)}
                   />
@@ -530,6 +577,11 @@ export default function MonitorPage() {
                     <span className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
                       <Shield className="w-3.5 h-3.5 text-emerald-400" />
                       Live Alertness Index
+                      {enhancedMode && (
+                        <span className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-mono font-normal">
+                          Enhanced ML
+                        </span>
+                      )}
                     </span>
                     <span className="text-[11px] font-mono text-slate-500">
                       Weighted Fusion (0-100)
