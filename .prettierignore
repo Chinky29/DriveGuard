@@ -1,0 +1,10 @@
+node_modules
+.next
+out
+legacy
+driveguard
+coverage
+build
+dist
+*.log
+driver_events.csv
