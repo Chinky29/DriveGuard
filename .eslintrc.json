@@ -1,0 +1,11 @@
+{
+  "extends": ["next/core-web-vitals"],
+  "ignorePatterns": [
+    "legacy/",
+    "driveguard/",
+    "web/",
+    ".next/",
+    "node_modules/",
+    "coverage/"
+  ]
+}

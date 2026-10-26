@@ -11,12 +11,13 @@
 
 ---
 
-## Phase 0: Project Skeleton, Configuration & Smoke Testing
-- [x] Clean directory layout (`driveguard/`, `tests/`, `models/`, `docs/`).
-- [x] Master configuration schema (`config.yaml`, `driveguard/config.py`).
-- [x] Pinned `requirements.txt` with MediaPipe Tasks verified for Python 3.12.
-- [x] Hardware smoke test script (`smoke_test.py`) with device index selection.
-- [x] Camera-not-found error handling and automated fallback to synthetic feed.
+## Phase 0: Project Skeleton, Configuration & Smoke Testing (Next.js App Router & Tooling)
+- [ ] Initialize Next.js (App Router, TypeScript, Tailwind CSS) project in repository root without disturbing `/docs` and `/legacy`.
+- [ ] Enable TypeScript strict mode, ESLint, Prettier, and Vitest.
+- [ ] Scaffold folder structure from `docs/architecture.md` Section 4 with initial component & lib skeletons.
+- [ ] Implement `lib/detection/config.ts` with zero-magic-number calibrated thresholds, windows, and comments.
+- [ ] Configure `.env.example`, `.gitignore` (ignoring `.env*`, `/legacy/**/*.h5` large binaries, `node_modules`), and comprehensive `README.md` skeleton.
+- [ ] Add and verify npm scripts: `dev`, `build`, `lint`, `typecheck`, `test`.
 
 ---
 

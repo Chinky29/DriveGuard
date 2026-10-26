@@ -1,3 +1,25 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Environment variables
+.env*
+!.env.example
+
+# Next.js build outputs
+.next/
+out/
+build/
+dist/
+*.tsbuildinfo
+
+# Large binary models and legacy weights
+/legacy/**/*.h5
+/legacy/**/*.keras
+models/*.task
+
+# Python virtual environment and caches
 __pycache__/
 *.py[cod]
 *$py.class
@@ -6,8 +28,14 @@ __pycache__/
 htmlcov/
 venv/
 .venv/
+
+# Telemetry logs and events
 *.log
 driver_events.csv
-models/*.task
+
+# Vitest and test coverage
+coverage/
+
+# OS metadata
 .DS_Store
 Thumbs.db
