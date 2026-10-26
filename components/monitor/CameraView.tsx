@@ -39,7 +39,10 @@ export interface LiveMetrics {
 export interface CameraViewProps {
   readonly onLandmarksDetected?: (landmarks: NormalizedLandmark[]) => void;
   readonly onMetricsUpdate?: (metrics: LiveMetrics) => void;
+  readonly onBrightnessDetected?: (lux: "optimal" | "low") => void;
   readonly initialDebugOverlay?: boolean;
+  readonly showRawTelemetryDebug?: boolean;
+  readonly isPaused?: boolean;
 }
 
 const INITIAL_METRICS: LiveMetrics = {
@@ -66,7 +69,10 @@ const INITIAL_METRICS: LiveMetrics = {
 export function CameraView({
   onLandmarksDetected,
   onMetricsUpdate,
-  initialDebugOverlay = true,
+  onBrightnessDetected,
+  initialDebugOverlay = false,
+  showRawTelemetryDebug = false,
+  isPaused = false,
 }: CameraViewProps) {
   const [cameraState, setCameraState] = useState<CameraState>("idle");
   const [sourceType, setSourceType] = useState<"webcam" | "demo">("webcam");
@@ -577,114 +583,116 @@ export function CameraView({
         )}
       </div>
 
-      {/* Live Raw Telemetry Debug Panel */}
-      <div
-        id="raw-metrics-panel"
-        className="w-full max-w-3xl bg-[#161616] border border-[#323232] rounded-xl p-4 font-mono text-xs text-slate-300 space-y-3 shadow-lg"
-      >
-        <div className="flex items-center justify-between border-b border-[#323232] pb-2">
-          <span className="font-semibold text-white tracking-wider flex items-center gap-2">
+      {/* Live Raw Telemetry Debug Panel (Hidden by default, toggled via debug mode) */}
+      {showRawTelemetryDebug && (
+        <div
+          id="raw-metrics-panel"
+          className="w-full max-w-3xl bg-[#161616] border border-[#323232] rounded-xl p-4 font-mono text-xs text-slate-300 space-y-3 shadow-lg"
+        >
+          <div className="flex items-center justify-between border-b border-[#323232] pb-2">
+            <span className="font-semibold text-white tracking-wider flex items-center gap-2">
+              <span
+                className={`w-2 h-2 rounded-full ${
+                  liveMetrics.isFaceReliable ? "bg-[#00FF7F]" : "bg-slate-600"
+                }`}
+              />
+              LIVE DETECTION TELEMETRY (RAW)
+            </span>
             <span
-              className={`w-2 h-2 rounded-full ${
-                liveMetrics.isFaceReliable ? "bg-[#00FF7F]" : "bg-slate-600"
-              }`}
-            />
-            LIVE DETECTION TELEMETRY (RAW)
-          </span>
-          <span
-            className={
-              liveMetrics.isFaceReliable ? "text-emerald-400 font-semibold" : "text-slate-500"
-            }
-          >
-            {liveMetrics.isFaceReliable ? "FACE RELIABLE" : "FACE NOT RELIABLY DETECTED"}
-          </span>
+              className={
+                liveMetrics.isFaceReliable ? "text-emerald-400 font-semibold" : "text-slate-500"
+              }
+            >
+              {liveMetrics.isFaceReliable ? "FACE RELIABLE" : "FACE NOT RELIABLY DETECTED"}
+            </span>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            {/* EAR */}
+            <div className="bg-[#07090f] p-3 rounded-lg border border-slate-800">
+              <span className="text-slate-500 block text-[11px]">EAR (Mean)</span>
+              <span
+                id="raw-ear"
+                className="text-lg font-bold text-white block mt-0.5"
+              >
+                {liveMetrics.ear.toFixed(3)}
+              </span>
+              <span className="text-[10px] text-slate-500 block">
+                L: {liveMetrics.leftEar.toFixed(3)} | R: {liveMetrics.rightEar.toFixed(3)}
+              </span>
+            </div>
+
+            {/* MAR */}
+            <div className="bg-[#07090f] p-3 rounded-lg border border-slate-800">
+              <span className="text-slate-500 block text-[11px]">MAR (Mouth)</span>
+              <span
+                id="raw-mar"
+                className={`text-lg font-bold block mt-0.5 ${
+                  liveMetrics.isYawning ? "text-amber-400" : "text-white"
+                }`}
+              >
+                {liveMetrics.mar.toFixed(3)}
+              </span>
+              <span className="text-[10px] text-slate-500 block">
+                Thr: {DEFAULT_CONFIG.mar.openThreshold.toFixed(2)} | Yawns: {liveMetrics.yawnCount}
+              </span>
+            </div>
+
+            {/* Head Pitch */}
+            <div className="bg-[#07090f] p-3 rounded-lg border border-slate-800">
+              <span className="text-slate-500 block text-[11px]">Pitch (Nod)</span>
+              <span
+                id="raw-pitch"
+                className={`text-lg font-bold block mt-0.5 ${
+                  liveMetrics.isNodding ? "text-amber-400" : "text-white"
+                }`}
+              >
+                {liveMetrics.pitch >= 0
+                  ? `+${liveMetrics.pitch.toFixed(1)}°`
+                  : `${liveMetrics.pitch.toFixed(1)}°`}
+              </span>
+              <span className="text-[10px] text-slate-500 block">
+                Yaw: {liveMetrics.yaw.toFixed(1)}° | Nods: {liveMetrics.nodCount}
+              </span>
+            </div>
+
+            {/* PERCLOS */}
+            <div className="bg-[#07090f] p-3 rounded-lg border border-slate-800">
+              <span className="text-slate-500 block text-[11px]">PERCLOS (60s)</span>
+              <span
+                id="raw-perclos"
+                className="text-lg font-bold text-emerald-400 block mt-0.5"
+              >
+                {(liveMetrics.perclos * 100).toFixed(1)}%
+              </span>
+              <span className="text-[10px] text-slate-500 block">
+                Blinks: {liveMetrics.blinkCount} ({liveMetrics.blinkRate.toFixed(1)}/m)
+              </span>
+            </div>
+          </div>
+
+          {/* Secondary event indicators */}
+          <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-slate-800/80 text-[11px] text-slate-400">
+            <div>
+              <span>Microsleeps: </span>
+              <span className="text-white font-semibold">{liveMetrics.microsleepCount}</span>
+              {liveMetrics.isMicrosleep && (
+                <span className="ml-1.5 text-red-400 font-semibold">[CLOSURE &gt; 1.0s]</span>
+              )}
+            </div>
+            <div>
+              <span>Blink State: </span>
+              <span className="text-white font-semibold">
+                {liveMetrics.isEyeClosed ? "Eyes Closed" : "Eyes Open"}
+              </span>
+            </div>
+            <div>
+              <span>Roll Angle: </span>
+              <span className="text-white font-semibold">{liveMetrics.roll.toFixed(1)}°</span>
+            </div>
+          </div>
         </div>
-
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-          {/* EAR */}
-          <div className="bg-[#07090f] p-3 rounded-lg border border-slate-800">
-            <span className="text-slate-500 block text-[11px]">EAR (Mean)</span>
-            <span
-              id="raw-ear"
-              className="text-lg font-bold text-white block mt-0.5"
-            >
-              {liveMetrics.ear.toFixed(3)}
-            </span>
-            <span className="text-[10px] text-slate-500 block">
-              L: {liveMetrics.leftEar.toFixed(3)} | R: {liveMetrics.rightEar.toFixed(3)}
-            </span>
-          </div>
-
-          {/* MAR */}
-          <div className="bg-[#07090f] p-3 rounded-lg border border-slate-800">
-            <span className="text-slate-500 block text-[11px]">MAR (Mouth)</span>
-            <span
-              id="raw-mar"
-              className={`text-lg font-bold block mt-0.5 ${
-                liveMetrics.isYawning ? "text-amber-400" : "text-white"
-              }`}
-            >
-              {liveMetrics.mar.toFixed(3)}
-            </span>
-            <span className="text-[10px] text-slate-500 block">
-              Thr: {DEFAULT_CONFIG.mar.openThreshold.toFixed(2)} | Yawns: {liveMetrics.yawnCount}
-            </span>
-          </div>
-
-          {/* Head Pitch */}
-          <div className="bg-[#07090f] p-3 rounded-lg border border-slate-800">
-            <span className="text-slate-500 block text-[11px]">Pitch (Nod)</span>
-            <span
-              id="raw-pitch"
-              className={`text-lg font-bold block mt-0.5 ${
-                liveMetrics.isNodding ? "text-amber-400" : "text-white"
-              }`}
-            >
-              {liveMetrics.pitch >= 0
-                ? `+${liveMetrics.pitch.toFixed(1)}°`
-                : `${liveMetrics.pitch.toFixed(1)}°`}
-            </span>
-            <span className="text-[10px] text-slate-500 block">
-              Yaw: {liveMetrics.yaw.toFixed(1)}° | Nods: {liveMetrics.nodCount}
-            </span>
-          </div>
-
-          {/* PERCLOS */}
-          <div className="bg-[#07090f] p-3 rounded-lg border border-slate-800">
-            <span className="text-slate-500 block text-[11px]">PERCLOS (60s)</span>
-            <span
-              id="raw-perclos"
-              className="text-lg font-bold text-emerald-400 block mt-0.5"
-            >
-              {(liveMetrics.perclos * 100).toFixed(1)}%
-            </span>
-            <span className="text-[10px] text-slate-500 block">
-              Blinks: {liveMetrics.blinkCount} ({liveMetrics.blinkRate.toFixed(1)}/m)
-            </span>
-          </div>
-        </div>
-
-        {/* Secondary event indicators */}
-        <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-slate-800/80 text-[11px] text-slate-400">
-          <div>
-            <span>Microsleeps: </span>
-            <span className="text-white font-semibold">{liveMetrics.microsleepCount}</span>
-            {liveMetrics.isMicrosleep && (
-              <span className="ml-1.5 text-red-400 font-semibold">[CLOSURE &gt; 1.0s]</span>
-            )}
-          </div>
-          <div>
-            <span>Blink State: </span>
-            <span className="text-white font-semibold">
-              {liveMetrics.isEyeClosed ? "Eyes Closed" : "Eyes Open"}
-            </span>
-          </div>
-          <div>
-            <span>Roll Angle: </span>
-            <span className="text-white font-semibold">{liveMetrics.roll.toFixed(1)}°</span>
-          </div>
-        </div>
-      </div>
+      )}
     </div>
   );
 }

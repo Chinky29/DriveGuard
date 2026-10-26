@@ -107,6 +107,72 @@ export interface ReliabilityConfig {
   readonly unreliableReason: string;
 }
 
+export interface CalibrationConfig {
+  /** Total calibration duration in seconds (20 seconds) */
+  readonly durationSeconds: number;
+  /** Minimum valid frames required to calculate personalized baseline */
+  readonly minValidSamples: number;
+  /** Median Absolute Deviation multiplier for outlier filtering */
+  readonly outlierMadMultiplier: number;
+  /** Default fallback baseline EAR if calibration is skipped */
+  readonly defaultEar: number;
+  /** Default fallback baseline MAR if calibration is skipped */
+  readonly defaultMar: number;
+  /** Ratio of baseline EAR to set eye closure threshold (e.g. 0.70 of baseline) */
+  readonly earLowRatio: number;
+  /** Ratio of baseline MAR to set mouth opening threshold (e.g. 2.5 of baseline) */
+  readonly marOpenRatio: number;
+}
+
+export interface FatigueWeightsConfig {
+  /** Weight for PERCLOS (0.0 - 1.0) */
+  readonly perclos: number;
+  /** Weight for microsleep events (0.0 - 1.0) */
+  readonly microsleep: number;
+  /** Weight for yawning activity (0.0 - 1.0) */
+  readonly yawn: number;
+  /** Weight for head nodding (0.0 - 1.0) */
+  readonly nod: number;
+  /** Weight for blink duration (0.0 - 1.0) */
+  readonly blinkDuration: number;
+}
+
+export interface FatigueScoreThresholdsConfig {
+  /** Fused score (0-100) triggering Notice level */
+  readonly noticeScore: number;
+  /** Fused score (0-100) triggering Warning level */
+  readonly warningScore: number;
+  /** Fused score (0-100) triggering Critical level */
+  readonly criticalScore: number;
+  /** Continuous sustain duration in seconds required to escalate to higher level */
+  readonly escalationSustainSeconds: number;
+  /** Continuous recovery duration in seconds required to de-escalate to lower level */
+  readonly deescalationRecoverySeconds: number;
+}
+
+export interface AlertsConfig {
+  /** Anti-spam cooldown intervals in seconds per alert level */
+  readonly cooldownSeconds: {
+    readonly notice: number;
+    readonly warning: number;
+    readonly critical: number;
+  };
+  /** Timeout in seconds before missing face escalates to advisory alert */
+  readonly faceLostTimeoutSeconds: number;
+  /** Vibration patterns in milliseconds for navigator.vibrate */
+  readonly vibratePatterns: {
+    readonly notice: readonly number[];
+    readonly warning: readonly number[];
+    readonly critical: readonly number[];
+  };
+  /** Audio tone frequencies in Hertz for synthesized chimes */
+  readonly toneFrequencies: {
+    readonly notice: number;
+    readonly warning: number;
+    readonly critical: number;
+  };
+}
+
 export interface DriveGuardConfig {
   readonly ear: EarConfig;
   readonly mar: MarConfig;
@@ -117,6 +183,10 @@ export interface DriveGuardConfig {
   readonly temporalFusion: TemporalFusionConfig;
   readonly landmarks: LandmarkIndexConfig;
   readonly reliability: ReliabilityConfig;
+  readonly calibration: CalibrationConfig;
+  readonly fatigueWeights: FatigueWeightsConfig;
+  readonly fatigueThresholds: FatigueScoreThresholdsConfig;
+  readonly alerts: AlertsConfig;
 }
 
 /**
@@ -185,4 +255,46 @@ export const DEFAULT_CONFIG: DriveGuardConfig = {
     minLandmarksRequired: 468,
     unreliableReason: "Face not reliably detected",
   },
+  calibration: {
+    durationSeconds: 20.0,
+    minValidSamples: 60,
+    outlierMadMultiplier: 2.5,
+    defaultEar: 0.30,
+    defaultMar: 0.15,
+    earLowRatio: 0.70,
+    marOpenRatio: 2.5,
+  },
+  fatigueWeights: {
+    perclos: 0.35,
+    microsleep: 0.25,
+    yawn: 0.15,
+    nod: 0.15,
+    blinkDuration: 0.10,
+  },
+  fatigueThresholds: {
+    noticeScore: 40.0,
+    warningScore: 65.0,
+    criticalScore: 85.0,
+    escalationSustainSeconds: 1.5,
+    deescalationRecoverySeconds: 3.0,
+  },
+  alerts: {
+    cooldownSeconds: {
+      notice: 6.0,
+      warning: 4.0,
+      critical: 2.0,
+    },
+    faceLostTimeoutSeconds: 5.0,
+    vibratePatterns: {
+      notice: [200],
+      warning: [200, 100, 200],
+      critical: [300, 100, 300, 100, 500],
+    },
+    toneFrequencies: {
+      notice: 440,
+      warning: 660,
+      critical: 880,
+    },
+  },
 } as const;
+
