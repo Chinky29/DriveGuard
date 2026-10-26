@@ -12,7 +12,8 @@ The system detects eye regions from webcam frames, predicts whether the eyes are
 - MobileNetV2-based transfer learning model for drowsy/non-drowsy eye classification
 - Temporal scoring logic to reduce false alerts from normal blinking
 - Head-pose-aware rule adjustment for side movement and downward gaze
-- Audio warning alert when sustained drowsiness is detected
+- Audio warning alert when sustained drowsiness is detected   
+
 
 ## Tech Stack
 
