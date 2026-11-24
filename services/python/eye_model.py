@@ -11,7 +11,7 @@ Architectural details:
 - Conv2D(64, 3x3) -> BatchNorm -> ReLU -> MaxPool
 - GlobalAveragePooling / Dense(64) -> Dropout(0.25) -> Dense(2, Softmax)
 - Parameter count: ~45,000 parameters (compared to MobileNetV2's 3.5+ million parameters)
-- Clean-room implementation: Zero code copied from unlicenced legacy repository.
+- Clean-room implementation.
 """
 
 import os

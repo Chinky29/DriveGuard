@@ -2,9 +2,8 @@
 
 ---
 
-## Pre-Phase: Architecture, Legacy Audit & Baseline Analysis (CURRENT)
-- [x] Audit `/legacy` repository architecture, algorithms, and dependencies.
-- [x] Document weaknesses, licensing risks, and non-reusable components in `docs/legacy-audit.md`.
+## Pre-Phase: Architecture & Baseline Analysis (CURRENT)
+- [x] Define architecture, requirements, and engineering governance rules.
 - [x] Update requirements and alignment in `docs/requirements.md`.
 - [x] Initialize memory and tracking in `docs/memory.md`.
 - [ ] Review with lead engineer before Phase 0 initialization.
@@ -12,11 +11,11 @@
 ---
 
 ## Phase 0: Project Skeleton, Configuration & Smoke Testing (Next.js App Router & Tooling)
-- [ ] Initialize Next.js (App Router, TypeScript, Tailwind CSS) project in repository root without disturbing `/docs` and `/legacy`.
+- [ ] Initialize Next.js (App Router, TypeScript, Tailwind CSS) project in repository root without disturbing `/docs`.
 - [ ] Enable TypeScript strict mode, ESLint, Prettier, and Vitest.
 - [ ] Scaffold folder structure from `docs/architecture.md` Section 4 with initial component & lib skeletons.
 - [ ] Implement `lib/detection/config.ts` with zero-magic-number calibrated thresholds, windows, and comments.
-- [ ] Configure `.env.example`, `.gitignore` (ignoring `.env*`, `/legacy/**/*.h5` large binaries, `node_modules`), and comprehensive `README.md` skeleton.
+- [ ] Configure `.env.example`, `.gitignore` (ignoring `.env*`, large binaries, `node_modules`), and comprehensive `README.md` skeleton.
 - [ ] Add and verify npm scripts: `dev`, `build`, `lint`, `typecheck`, `test`.
 
 ---

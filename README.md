@@ -15,7 +15,7 @@ DriveGuard strictly adheres to the engineering rules defined in [`docs/rules.md`
 3. **Privacy by Design (Rule 3)**: All video frames are processed locally in volatile memory. Raw images and video streams are **never** persisted to disk or sent to external servers. A persistent `"CAMERA ACTIVE [LOCAL PROCESSING ONLY]"` badge is displayed at all times.
 4. **Zero Magic Numbers (Rule 4)**: All thresholds, landmark indices, and sliding window durations are externalized in [`lib/detection/config.ts`](lib/detection/config.ts) and [`config.yaml`](config.yaml).
 5. **Pure Mathematical Testability (Rule 5)**: Geometry, EAR calculations, PERCLOS integrations, and head pose estimations are pure functions tested independently of camera hardware.
-6. **Clean-Room Engineering (Rule 6)**: The `/legacy` directory is read-only reference. Zero code or unverified binaries are imported into DriveGuard.
+6. **Clean-Room Engineering (Rule 6)**: All detection logic, geometry, and models in DriveGuard are clean-room implementations with zero unverified external binaries.
 
 ---
 
@@ -47,12 +47,10 @@ DriveGuard/
 ├── docs/                       # Project documentation & engineering specifications
 │   ├── architecture.md         # Pipeline design & directory structure
 │   ├── design.md               # Color palette & cockpit HUD specifications
-│   ├── legacy-audit.md         # Technical analysis of legacy baseline
 │   ├── memory.md               # Project state and execution logs
 │   ├── phases.md               # Phase roadmap & milestone tracking
 │   ├── requirements.md         # Requirements matrix & audit diff
 │   └── rules.md                # Safety, privacy & architectural constraints
-├── legacy/                     # Reference-only legacy repository
 ├── lib/                        # Detection engine & utilities
 │   ├── audio/                  # Web Audio API chime generator
 │   ├── detection/              # Pure EAR, PERCLOS, HeadPose, and Fusion logic

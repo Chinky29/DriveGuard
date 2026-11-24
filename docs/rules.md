@@ -50,11 +50,9 @@ These rules are mandatory for all contributors, agents, and subagents on the Dri
 
 ---
 
-## 6. Legacy Reference Policy (Rule 6)
-- The `/legacy` directory is **read-only and reference-only**.
-- Do **not** modify `/legacy`.
-- Do **not** copy code blindly from `/legacy`.
-- Heavy, unverified legacy models and procedural logic must not contaminate the clean modular architecture.
+## 6. Clean-Room Engineering Policy (Rule 6)
+- All detection logic, models, and UI components must be clean-room implementations.
+- Unverified external models and procedural logic must not contaminate the clean modular architecture.
 
 ---
 

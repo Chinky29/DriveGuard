@@ -8,7 +8,7 @@ export default defineConfig({
     globals: true,
     environment: "jsdom",
     include: ["tests/unit/**/*.test.ts", "tests/unit/**/*.test.tsx"],
-    exclude: ["node_modules", "legacy", "driveguard"],
+    exclude: ["node_modules", "driveguard"],
   },
   resolve: {
     alias: {

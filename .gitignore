@@ -14,9 +14,7 @@ build/
 dist/
 *.tsbuildinfo
 
-# Large binary models and legacy weights
-/legacy/**/*.h5
-/legacy/**/*.keras
+# Large binary models
 models/*.task
 
 # Python virtual environment and caches

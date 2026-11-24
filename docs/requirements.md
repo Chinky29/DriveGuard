@@ -5,26 +5,7 @@ DriveGuard is an edge-first, real-time driver-state monitoring web application p
 
 ---
 
-## 2. Existing Features Analysis (Legacy Baseline vs. Reality)
-
-> **Audit Context**: Evaluated against the `/legacy` reference repository (`Driver-Drowsiness-detection-system`). Changes from initial expectations to verified reality are marked below.
-
-### 2.1 Feature Audit & Reality Matrix
-
-| Feature | Claimed / Expected | Verified Reality in `/legacy` | DriveGuard Target |
-| :--- | :--- | :--- | :--- |
-| **Face & Mesh Detection** | MediaPipe FaceMesh | Uses deprecated `mp.solutions.face_mesh` (incompatible with modern Python 3.12 / MediaPipe 1.0+) | **[CHANGED]** Must use modern `mediapipe.tasks.python.vision.FaceLandmarker` with automated model download |
-| **Eye State Classification** | Deep MobileNetV2 CNN + EAR | Dual system: 6-point EAR + MobileNetV2 (`drowsiness_mobilenetv2.keras`) running synchronously on every frame for both eyes | **[CHANGED]** Eliminate heavy proprietary CNN for prototype baseline. Rely on pure calibrated EAR + standard time-weighted PERCLOS to maintain real-time FPS on CPU |
-| **Head Pose Estimation** | Head-pose cues for side/downward gaze | 6-point `solvePnP` with `RQDecomp3x3` in OpenCV. Hardcoded thresholds (`yaw=25°`, `pitch=18°`) | **[CHANGED]** Standardize anthropometric 3D face model points, eliminate magic numbers into `config.yaml`, and provide 3D axis visualization |
-| **Scoring & Alarm Logic** | Temporal scoring | Arbitrary point accumulation (`score += 5`, `+= 2`, `-1`, max 15) with hardcoded confirmation delay (2.0s / 0.8s) | **[CHANGED]** Replace ad-hoc points with calibrated temporal sliding window integration and graded levels (`NORMAL`, `NOTICE`, `WARNING`) |
-| **Alert Phrasing** | Driver Alert | Emits uncalibrated `"ALERT: DROWSY"` text | **[CRITICAL CHANGE]** Strictly forbid `"drowsy"` and `"unsafe"`. Provide purely descriptive advisory causes: `"prolonged eye closure"`, `"sustained head deviation"` |
-| **Audio Alerts** | Audio warning | Uses `winsound.Beep` | **[CHANGED]** `winsound` is Windows-only. Must use cross-platform audio or client-side web audio synthesis |
-| **Application Interface** | Production prototype | Single procedural desktop script calling `cv2.imshow` | **[CHANGED]** Modular package layout, clean separation of concerns, and web/HUD presentation |
-| **Licensing** | Open-source reference | **NO LICENSE FILE**. Copyright retained by author | **[CHANGED]** Clean-room implementation. Zero code or binary models copied from legacy |
-
----
-
-## 3. DriveGuard Functional Requirements
+## 2. DriveGuard Functional Requirements
 
 ### FR-1: Video Capture & Ingestion
 - Ingest live frames from local webcams (`camera.device_id`).
@@ -65,7 +46,7 @@ DriveGuard is an edge-first, real-time driver-state monitoring web application p
 
 ---
 
-## 4. Non-Functional Requirements
+## 3. Non-Functional Requirements
 - **Performance**: Maintain >= 25 FPS on modern quad-core CPU without dedicated GPU.
 - **Testability**: Pure math modules testable via automated pytest suite with synthetic fixtures.
 - **Portability**: Verified on Python 3.10 - 3.12 across Windows, Linux, and macOS.

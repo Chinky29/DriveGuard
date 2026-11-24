@@ -16,12 +16,10 @@ A decoupled Python microservice providing secondary, asynchronous machine learni
 
 ---
 
-## 2. Legacy Model & Licensing Assessment
+## 2. Clean-Room Model Design
 
-Per the audit in [docs/legacy-audit.md](file:///c:/Users/CHINKY/Documents/New%20folder/DriveGuard/docs/legacy-audit.md):
-- **Licensing Constraint**: The reference repository (`/legacy`) has **NO license grant**. Under copyright law, all rights are reserved by the original creator. Direct code, weights, or dataset reuse is prohibited.
-- **Technical Bottlenecks**: The legacy model `drowsiness_mobilenetv2.keras` (11.7 MB) requires synchronous MobileNetV2 forwards on CPU, creating severe frame-rate drops (<10 FPS) and arbitrary point scoring.
-- **Clean-Room Solution**: We provide a modern, clean-room 45,000-parameter CNN (`eye_model.py`) requiring only ~180 KB of memory with sub-millisecond inference latency, accompanied by a reproducible training script ([train_eye_cnn.py](file:///c:/Users/CHINKY/Documents/New%20folder/DriveGuard/services/python/train_eye_cnn.py)) and training notebook ([train_eye_cnn.ipynb](file:///c:/Users/CHINKY/Documents/New%20folder/DriveGuard/services/python/train_eye_cnn.ipynb)).
+- **Lightweight Architecture**: We provide a modern, clean-room 45,000-parameter CNN (`eye_model.py`) requiring only ~180 KB of memory with sub-millisecond inference latency, avoiding heavy MobileNetV2 CPU bottlenecks.
+- **Reproducible Training**: Accompanied by a reproducible training script (`train_eye_cnn.py`) and training notebook (`train_eye_cnn.ipynb`).
 
 ---
 

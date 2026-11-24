@@ -116,12 +116,10 @@ DriveGuard/
 ├── docs/                                # Project documentation suite
 │   ├── architecture.md
 │   ├── design.md
-│   ├── legacy-audit.md
 │   ├── memory.md
 │   ├── phases.md
 │   ├── requirements.md
 │   └── rules.md
-├── legacy/                              # Reference legacy repository (read-only)
 ├── lib/                                 # Core libraries and detection logic
 │   ├── audio/
 │   │   └── chimes.ts                    # Web Audio API pure tone generator
