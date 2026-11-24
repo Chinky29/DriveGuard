@@ -73,6 +73,9 @@ export class FaceLandmarkManager {
           outputFaceBlendshapes: false,
           runningMode: "VIDEO",
           numFaces: 1,
+          minFaceDetectionConfidence: 0.25,
+          minFacePresenceConfidence: 0.25,
+          minTrackingConfidence: 0.25,
         });
       } catch (gpuError) {
         console.warn("GPU delegate failed, falling back to CPU delegate:", gpuError);
@@ -86,6 +89,9 @@ export class FaceLandmarkManager {
           outputFaceBlendshapes: false,
           runningMode: "VIDEO",
           numFaces: 1,
+          minFaceDetectionConfidence: 0.25,
+          minFacePresenceConfidence: 0.25,
+          minTrackingConfidence: 0.25,
         });
       }
 

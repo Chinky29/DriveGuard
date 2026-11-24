@@ -15,15 +15,15 @@ Architectural details:
 """
 
 import os
-import io
+from typing import Optional
 import numpy as np
 from PIL import Image
 
 # Attempt PyTorch import with pure-Python/NumPy fallback
 try:
-    import torch
-    import torch.nn as nn
-    import torchvision.transforms as transforms
+    import torch  # type: ignore[import-not-found]
+    import torch.nn as nn  # type: ignore[import-not-found]
+    import torchvision.transforms as transforms  # type: ignore[import-not-found]
     HAS_TORCH = True
 except ImportError:
     HAS_TORCH = False
@@ -65,11 +65,12 @@ if HAS_TORCH:
 
 
 class EyeClassifier:
-    def __init__(self, weights_path: str = None):
+    def __init__(self, weights_path: Optional[str] = None):
         self.weights_path = weights_path or os.path.join(
             os.path.dirname(__file__), "eye_model_weights.pt"
         )
         self.model = None
+        self.transform = None
         self.device = "cpu"
 
         if HAS_TORCH:
@@ -77,7 +78,9 @@ class EyeClassifier:
                 self.device = "cuda" if torch.cuda.is_available() else "cpu"
                 self.model = LightweightEyeCNN().to(self.device)
                 if os.path.exists(self.weights_path):
-                    checkpoint = torch.load(self.weights_path, map_location=self.device)
+                    checkpoint = torch.load(
+                        self.weights_path, map_location=self.device, weights_only=True
+                    )
                     self.model.load_state_dict(checkpoint)
                     print(f"[DriveGuard EyeCNN] Loaded weights from {self.weights_path}")
                 else:
@@ -98,7 +101,7 @@ class EyeClassifier:
         """
         Classifies a PIL eye image and returns open/closed probabilities.
         """
-        if self.model is not None and HAS_TORCH:
+        if self.model is not None and self.transform is not None and HAS_TORCH:
             try:
                 rgb_img = image.convert("RGB")
                 tensor = self.transform(rgb_img).unsqueeze(0).to(self.device)

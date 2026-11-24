@@ -41,6 +41,8 @@ export class AlertManager {
   // Face lost timeout tracking
   private faceLostStartTime: number | null = null;
   private hasEscalatedFaceLost: boolean = false;
+  // Continuous warning duration tracking (for extended warning siren)
+  private warningStartTime: number | null = null;
 
   constructor(config: DriveGuardConfig = DEFAULT_CONFIG) {
     this.config = config;
@@ -68,7 +70,7 @@ export class AlertManager {
   /**
    * Unlocks the Web Audio context on a user gesture (pointerdown, click, keydown).
    */
-  public unlockAudio(): boolean {
+  public unlockAudio(onUnlocked?: (unlocked: boolean) => void): boolean {
     if (!this.audioCtx) {
       this.initAudioContext();
     }
@@ -79,12 +81,15 @@ export class AlertManager {
           .resume()
           .then(() => {
             this.isAudioUnlocked = true;
+            onUnlocked?.(true);
           })
           .catch(() => {
             this.isAudioUnlocked = false;
+            onUnlocked?.(false);
           });
       } else if (this.audioCtx.state === "running") {
         this.isAudioUnlocked = true;
+        onUnlocked?.(true);
       }
     }
 
@@ -99,18 +104,39 @@ export class AlertManager {
   }
 
   /**
-   * Dispatches audio tone for an alert level.
+   * Dispatches audio tone or siren for an alert level.
    */
-  public playAlertSound(level: AlertLevel): boolean {
+  public playAlertSound(level: AlertLevel, isExtended: boolean = false): boolean {
     if (!this.audioCtx) {
       this.initAudioContext();
     }
-    if (!this.audioCtx || this.audioCtx.state === "suspended") {
+    if (!this.audioCtx) {
       return false;
     }
 
+    const ctx = this.audioCtx;
+    if (ctx.state === "suspended") {
+      ctx
+        .resume()
+        .then(() => {
+          this.isAudioUnlocked = true;
+          this.dispatchTonePattern(ctx, level, isExtended);
+        })
+        .catch(() => {
+          // Autoplay policy blocked resume until user gesture
+        });
+      return false;
+    }
+
+    return this.dispatchTonePattern(ctx, level, isExtended);
+  }
+
+  private dispatchTonePattern(
+    ctx: AudioContext,
+    level: AlertLevel,
+    isExtended: boolean
+  ): boolean {
     try {
-      const ctx = this.audioCtx;
       const freq = this.config.alerts.toneFrequencies[
         level.toLowerCase() as keyof typeof this.config.alerts.toneFrequencies
       ];
@@ -118,27 +144,45 @@ export class AlertManager {
       if (level === "Notice") {
         // Single gentle advisory tone
         this.synthesizeTone(ctx, freq, 0.15, 0.2, "sine");
-      } else if (level === "Warning") {
-        // Dual stepped tone
-        this.synthesizeTone(ctx, freq, 0.15, 0.3, "triangle");
+      } else if (level === "Warning" && !isExtended) {
+        // Dual stepped warning alert
+        this.synthesizeTone(ctx, freq, 0.22, 0.35, "triangle");
         setTimeout(() => {
           if (ctx.state === "running") {
-            this.synthesizeTone(ctx, freq * 0.85, 0.18, 0.3, "triangle");
+            this.synthesizeTone(ctx, freq * 1.25, 0.25, 0.35, "triangle");
           }
-        }, 120);
+        }, 180);
+      } else if (level === "Warning" && isExtended) {
+        // Extended warning: unmistakable alternating two-tone siren
+        this.synthesizeSiren(ctx, freq, freq * 1.45, 4, 0.18, 0.4);
       } else if (level === "Critical") {
-        // Triple urgent pulses
-        for (let i = 0; i < 3; i++) {
-          setTimeout(() => {
-            if (ctx.state === "running") {
-              this.synthesizeTone(ctx, freq, 0.10, 0.45, "square");
-            }
-          }, i * 140);
-        }
+        // Critical: urgent high-frequency siren sweeps
+        this.synthesizeSiren(ctx, freq * 0.85, freq * 1.25, 5, 0.14, 0.5);
       }
       return true;
     } catch {
       return false;
+    }
+  }
+
+  /**
+   * Synthesizes a multi-pulse alternating siren pattern.
+   */
+  private synthesizeSiren(
+    ctx: AudioContext,
+    lowFreq: number,
+    highFreq: number,
+    pulses: number,
+    pulseDuration: number,
+    maxGain: number
+  ): void {
+    for (let i = 0; i < pulses; i++) {
+      const freq = i % 2 === 0 ? highFreq : lowFreq;
+      setTimeout(() => {
+        if (ctx.state === "running") {
+          this.synthesizeTone(ctx, freq, pulseDuration, maxGain, "sawtooth");
+        }
+      }, i * (pulseDuration * 1000 + 20));
     }
   }
 
@@ -222,13 +266,14 @@ export class AlertManager {
         };
       }
 
-      // Reached timeout: Escalate to Warning level alert
+      // Reached timeout: Escalate to Warning level alert with siren
       const warningCooldown = this.config.alerts.cooldownSeconds.warning;
       const canEscalate =
         nowSeconds - this.lastAlertTime.Warning >= warningCooldown || !this.hasEscalatedFaceLost;
 
       if (canEscalate) {
-        const audioPlayed = this.playAlertSound("Warning");
+        const isExtended = this.hasEscalatedFaceLost;
+        const audioPlayed = this.playAlertSound("Warning", isExtended);
         const vibrationTriggered = this.triggerVibration("Warning");
         this.lastAlertTime.Warning = nowSeconds;
         this.hasEscalatedFaceLost = true;
@@ -261,6 +306,7 @@ export class AlertManager {
 
     // Normal level: silent, nominal
     if (currentFatigueLevel === "Normal") {
+      this.warningStartTime = null;
       return {
         level: "Normal",
         triggered: false,
@@ -274,6 +320,12 @@ export class AlertManager {
 
     // Notice, Warning, Critical alerts: check cooldown
     const level = currentFatigueLevel as AlertLevel;
+    if (level === "Notice") {
+      this.warningStartTime = null;
+    } else if (this.warningStartTime === null) {
+      this.warningStartTime = nowSeconds;
+    }
+
     const cooldown = this.config.alerts.cooldownSeconds[
       level.toLowerCase() as keyof typeof this.config.alerts.cooldownSeconds
     ];
@@ -292,8 +344,12 @@ export class AlertManager {
       };
     }
 
-    // Fire alert
-    const audioPlayed = this.playAlertSound(level);
+    // Fire alert (escalate sound to full siren when Warning extends past first trigger)
+    const isExtendedWarning =
+      level === "Warning" &&
+      this.warningStartTime !== null &&
+      nowSeconds - this.warningStartTime >= cooldown;
+    const audioPlayed = this.playAlertSound(level, isExtendedWarning);
     const vibrationTriggered = this.triggerVibration(level);
     this.lastAlertTime[level] = nowSeconds;
 
@@ -319,5 +375,6 @@ export class AlertManager {
     };
     this.faceLostStartTime = null;
     this.hasEscalatedFaceLost = false;
+    this.warningStartTime = null;
   }
 }

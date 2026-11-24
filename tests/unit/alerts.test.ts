@@ -72,4 +72,24 @@ describe("AlertManager & Cooldown Logic", () => {
     expect(recovered.level).toBe("Normal");
     expect(recovered.triggered).toBe(false);
   });
+
+  it("re-triggers Warning alert when warning extends beyond cooldown", () => {
+    const alerts = new AlertManager(DEFAULT_CONFIG);
+
+    // Initial Warning at t=10.0s
+    const first = alerts.evaluate("Warning", true, 10.0, ["prolonged eye closure"]);
+    expect(first.level).toBe("Warning");
+    expect(first.triggered).toBe(true);
+
+    // Still within 4.0s cooldown at t=12.0s -> Suppressed
+    const mid = alerts.evaluate("Warning", true, 12.0, ["prolonged eye closure"]);
+    expect(mid.triggered).toBe(false);
+    expect(mid.suppressedByCooldown).toBe(true);
+
+    // Extended Warning past 4.0s cooldown at t=14.5s -> Re-triggers siren!
+    const extended = alerts.evaluate("Warning", true, 14.5, ["prolonged eye closure"]);
+    expect(extended.level).toBe("Warning");
+    expect(extended.triggered).toBe(true);
+    expect(extended.suppressedByCooldown).toBe(false);
+  });
 });

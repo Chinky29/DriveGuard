@@ -23,8 +23,14 @@ export function ConsentModal({
       setInternalOpen(true);
       return;
     }
-    const hasConsented = localStorage.getItem(CONSENT_STORAGE_KEY);
-    if (!hasConsented) {
+    try {
+      const hasConsented =
+        localStorage.getItem(CONSENT_STORAGE_KEY) ||
+        sessionStorage.getItem(CONSENT_STORAGE_KEY);
+      if (!hasConsented) {
+        setInternalOpen(true);
+      }
+    } catch {
       setInternalOpen(true);
     }
   }, [forceShow]);
@@ -32,7 +38,15 @@ export function ConsentModal({
   const isOpen = controlledIsOpen !== undefined ? controlledIsOpen : internalOpen;
 
   const handleAccept = () => {
-    localStorage.setItem(CONSENT_STORAGE_KEY, "true");
+    try {
+      localStorage.setItem(CONSENT_STORAGE_KEY, "true");
+    } catch {
+      try {
+        sessionStorage.setItem(CONSENT_STORAGE_KEY, "true");
+      } catch {
+        // Ignore storage quota or access errors so consent can still proceed for this session
+      }
+    }
     setInternalOpen(false);
     if (onConsentGiven) {
       onConsentGiven();

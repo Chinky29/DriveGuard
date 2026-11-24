@@ -24,6 +24,7 @@ export interface LiveMetrics {
   readonly yaw: number;
   readonly roll: number;
   readonly perclos: number;
+  readonly eyeClosureDuration: number;
   readonly blinkCount: number;
   readonly blinkRate: number;
   readonly isEyeClosed: boolean;
@@ -47,6 +48,8 @@ export interface CameraViewProps {
   readonly isPaused?: boolean;
 }
 
+const FACE_DROPOUT_GRACE_SECONDS = 0.6;
+
 const INITIAL_METRICS: LiveMetrics = {
   ear: 0.0,
   leftEar: 0.0,
@@ -56,6 +59,7 @@ const INITIAL_METRICS: LiveMetrics = {
   yaw: 0.0,
   roll: 0.0,
   perclos: 0.0,
+  eyeClosureDuration: 0.0,
   blinkCount: 0,
   blinkRate: 0.0,
   isEyeClosed: false,
@@ -95,6 +99,12 @@ export function CameraView({
   const isStoppingRef = useRef<boolean>(false);
   const lastCropTimeRef = useRef<number>(0);
   const cropCycleRef = useRef<number>(0);
+  const lastValidFaceTimeRef = useRef<number | null>(null);
+  const lastValidObservationRef = useRef<{
+    earRes: ReturnType<typeof computeEAR>;
+    marRes: ReturnType<typeof computeMAR>;
+    poseRes: ReturnType<typeof computeHeadPose>;
+  } | null>(null);
 
   // Fully stop and release camera media tracks and detection loop
   const stopCamera = useCallback(() => {
@@ -131,6 +141,8 @@ export function CameraView({
 
     // 5. Reset tracker
     trackerRef.current.resetContinuousAccumulators();
+    lastValidFaceTimeRef.current = null;
+    lastValidObservationRef.current = null;
 
     setFps(0);
     setLandmarksCount(0);
@@ -166,7 +178,7 @@ export function CameraView({
           ? results.faceLandmarks[0]
           : null;
 
-      const isFaceReliable =
+      const rawFaceReliable =
         !!landmarks && landmarks.length >= DEFAULT_CONFIG.reliability.minLandmarksRequired;
 
       setLandmarksCount(landmarks ? landmarks.length : 0);
@@ -191,18 +203,33 @@ export function CameraView({
         }
       }
 
-      // Compute pure features
-      const earRes = computeEAR(landmarks, DEFAULT_CONFIG);
-      const marRes = computeMAR(landmarks, DEFAULT_CONFIG);
+      const nowSeconds = performance.now() / 1000.0;
+      let earRes = computeEAR(landmarks, DEFAULT_CONFIG);
+      let marRes = computeMAR(landmarks, DEFAULT_CONFIG);
       const matrixInput =
         results.facialTransformationMatrixes &&
         results.facialTransformationMatrixes.length > 0
           ? results.facialTransformationMatrixes[0]
           : null;
-      const poseRes = computeHeadPose(matrixInput);
+      let poseRes = computeHeadPose(matrixInput);
+
+      // Hold tracking briefly across momentary frame dropouts (e.g. rapid head nod)
+      let isFaceReliable = rawFaceReliable;
+      if (rawFaceReliable) {
+        lastValidFaceTimeRef.current = nowSeconds;
+        lastValidObservationRef.current = { earRes, marRes, poseRes };
+      } else if (
+        lastValidFaceTimeRef.current !== null &&
+        lastValidObservationRef.current !== null &&
+        nowSeconds - lastValidFaceTimeRef.current < FACE_DROPOUT_GRACE_SECONDS
+      ) {
+        isFaceReliable = true;
+        earRes = lastValidObservationRef.current.earRes;
+        marRes = lastValidObservationRef.current.marRes;
+        poseRes = lastValidObservationRef.current.poseRes;
+      }
 
       // Ingest into pure temporal tracker
-      const nowSeconds = performance.now() / 1000.0;
       const snapshot = trackerRef.current.update({
         timestamp: nowSeconds,
         ear: earRes.avgEAR,
@@ -220,6 +247,7 @@ export function CameraView({
         yaw: poseRes.yaw,
         roll: poseRes.roll,
         perclos: snapshot.perclos,
+        eyeClosureDuration: snapshot.eyeClosureDuration,
         blinkCount: snapshot.blinkCount,
         blinkRate: snapshot.blinkRatePerMinute,
         isEyeClosed: snapshot.isEyeClosed,

@@ -82,6 +82,7 @@ export default function MonitorPage() {
   const [isAudioUnlocked, setIsAudioUnlocked] = useState<boolean>(false);
   const [isCriticalDismissed, setIsCriticalDismissed] = useState<boolean>(false);
   const [enhancedMode, setEnhancedMode] = useState<boolean>(false);
+  const [extendedFaceLossWarning, setExtendedFaceLossWarning] = useState<string | null>(null);
 
   // Engine references
   const trackerRef = useRef<FusedFatigueTracker>(new FusedFatigueTracker(DEFAULT_CONFIG));
@@ -169,10 +170,30 @@ export default function MonitorPage() {
     return () => clearInterval(timer);
   }, [sessionActive, isPaused, isSummaryView]);
 
-  // 2. Audio Unlock Handler
+  // 2. Audio Unlock Handler (manual button + automatic first user gesture unlock)
   const handleUnlockAudio = useCallback(() => {
-    const unlocked = alertManagerRef.current.unlockAudio();
-    setIsAudioUnlocked(unlocked);
+    const unlocked = alertManagerRef.current.unlockAudio((isNowUnlocked) => {
+      setIsAudioUnlocked(isNowUnlocked);
+    });
+    if (unlocked) {
+      setIsAudioUnlocked(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    const unlockOnGesture = () => {
+      alertManagerRef.current.unlockAudio((isNowUnlocked) => {
+        if (isNowUnlocked) {
+          setIsAudioUnlocked(true);
+        }
+      });
+    };
+    window.addEventListener("pointerdown", unlockOnGesture);
+    window.addEventListener("keydown", unlockOnGesture);
+    return () => {
+      window.removeEventListener("pointerdown", unlockOnGesture);
+      window.removeEventListener("keydown", unlockOnGesture);
+    };
   }, []);
 
   // 3. Process incoming frame metrics through Fused Fatigue Engine and Alert Manager
@@ -188,7 +209,9 @@ export default function MonitorPage() {
         timestamp: now,
         isFaceReliable: metrics.isFaceReliable,
         perclos: metrics.perclos,
-        blinkDurationSeconds: metrics.isEyeClosed ? 0.6 : 0.2,
+        blinkDurationSeconds: metrics.isEyeClosed
+          ? Math.max(0.6, metrics.eyeClosureDuration)
+          : 0.2,
         yawnRatePerMinute:
           metrics.blinkRate > 0
             ? metrics.yawnCount / (metrics.blinkRate / 20 || 1)
@@ -217,6 +240,12 @@ export default function MonitorPage() {
         now,
         assessment.reasons
       );
+
+      if (metrics.isFaceReliable) {
+        setExtendedFaceLossWarning(null);
+      } else if (alertResult.level === "Warning") {
+        setExtendedFaceLossWarning(alertResult.message);
+      }
 
       // Reset critical overlay dismissal when level de-escalates
       if (assessment.level !== "Critical") {
@@ -352,6 +381,7 @@ export default function MonitorPage() {
     setIsPaused(false);
     setIsSummaryView(false);
     setSessionActive(true);
+    setExtendedFaceLossWarning(null);
     previousLevelRef.current = "Normal";
 
     if (isSignedIn) {
@@ -517,10 +547,14 @@ export default function MonitorPage() {
           />
         ) : (
           <>
-            {/* Top Alert Banner for Notice / Warning */}
+            {/* Top Alert Banner for Notice / Warning (or extended face tracking loss) */}
             <AlertBanner
-              level={fatigueAssessment.level}
-              reasons={fatigueAssessment.reasons}
+              level={extendedFaceLossWarning ? "Warning" : fatigueAssessment.level}
+              reasons={
+                extendedFaceLossWarning
+                  ? [extendedFaceLossWarning]
+                  : fatigueAssessment.reasons
+              }
             />
 
             {/* Session Controls Header Row */}
